@@ -1,25 +1,65 @@
 <HTML>
-<HEAD><TITLE>csvbankin.web</TITLE></HEAD>
+<HEAD><TITLE>perlweb/csvbankin.web</TITLE></HEAD>
 <BODY>
 <P><A NAME="module_1"></A><HR NOSHADE SIZE=4></HR><B>1. csvbankin -- a scrip to parse csv bank statements and remember account mappings.</B>
 </P>
 
 <PRE>
 #p this unnamed module begins the perl source.
+
+    \#!/usr/bin/perl -w
+
+    use strict;
+    &lt;&lt;Start of program&gt;&gt;<A HREF="#module_4"><SUB>4</SUB></A>
 </PRE>
-<P><A NAME="module_2"></A><HR NOSHADE SIZE=1></HR>2. Start of this documentation
+<P><A NAME="module_2"></A><HR NOSHADE SIZE=1></HR>2. Introduction
 </P>
 
-<P>    this is just some test documentation to see if w2h will compile this correctly.
+<P>    csvbankin is a tool which is almost done, and I'm trying to make it too perfect. So I'm going to stop trying to make it too perfect; but I'm still holding onto the dream of perfection so I'm trying to finish it with a bit of overhead ... this PerlWEB literate programming system and a full ticketing of my progress in git(hub).
+    Note that since this is getting committed to the repo, everyone will be able to read all about my sillyness for the duration, even if I delete this (which I will as I get going with the 'real' documentation). The point, anyways, is to document my program.
 </P>
 
-<P>    this will all be replaced soon -- if it works, that is.
+<P><A NAME="module_3"></A><HR NOSHADE SIZE=4></HR><B>3. *.</B>#*Introduction to csvbankin
 </P>
 
-<P><A NAME="module_3"></A><HR NOSHADE SIZE=1></HR>3. Another documentation heading
+<P>    <CODE>Csvbankin</CODE> parses diverse csv bank statements to a single format and remembers mappings of transactions to accounts. It is intended to prepare statements from different banks, which might all have different csv formats for their statements, to one standardized format for import into a finance management program. The need arose for me because <CODE>Moneyguru</CODE>, the package I was using, has a good csv import routine that can remember what accounts to map transactions to given the presence of a field with an internal account name, but it can't derive those account names from the text of the transaction itself. So, that's the second thing <CODE>csvbankin</CODE> does: it learns to recognize which account a transaction should be mapped to based on match strings in the text of the input file.
+</P>
+
+<P><A NAME="module_4"></A><HR NOSHADE SIZE=1></HR>4. Structure of the program
+</P>
+
+<P>    To accomplish this purpose, <CODE>csvbankin</CODE> runs in two steps. First, it parses the lines from the input file, and compares them to its list of accounts and match strings to determine what accounts go with each transaction. It prints these matches in an intermediate file which the user must inspect, adding new match strings and account names. Second, <CODE>csvbankin</CODE> reads this intermediate file to produce the final output file, and adds any new account names and match strings to its list to use next time. The idea is that over time, the amount of manual intervention decreases, because <CODE>csvbankin</CODE> remembers more and more matches.
+</P>
+
+<P>    <b>libraries</b>
+</P>
+
+<P>    <CODE>csvbankin</CODE> makes use of the following libraries:
+</P>
+
+<P>    <ul>
+        <li>YAML::AppConfig</li>
+    </ul>
+</P>
+
+<PRE>
+&lt;&lt;Start of program&gt;&gt; =
+
+    =head1 test
+
+    does an inline comment work here? no??
+
+    =cut
+
+    my $variable = "Hello, world!";
+
+    print "$variable\n";
+</PRE>
+<P><A NAME="module_5"></A><HR NOSHADE SIZE=1></HR>5. Another documentation heading
 </P>
 
 <P>    this <em>should</em> turn out right ...
 <UL>
+<LI>Start of program: 1, <EM>4</EM>
 </UL>
 </BODY></HTML>
