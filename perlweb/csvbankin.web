@@ -1,0 +1,26 @@
+#* csvbankin -- a scrip to parse csv bank statements and remember account mappings.
+
+#p this unnamed module begins the perl source.
+    
+    \#!/usr/bin/perl -w
+    
+    use strict;
+    #<Start of program#>
+
+
+
+# Start of this documentation
+
+    this is just some test documentation to see if w2h will compile this correctly.
+    
+    this will all be replaced soon -- if it works, that is.
+
+#<Start of program#>=
+    my $variable = "Hello, world!";
+    
+    print "$variable\n";
+    
+# Another documentation heading
+
+
+    this <em>should</em> turn out right ...
