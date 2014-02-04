@@ -15,6 +15,8 @@
     &lt;&lt;sub determine_action&gt;&gt;<A HREF="#module_4"><SUB>4</SUB></A>
     &lt;&lt;sub read_configuration&gt;&gt;<A HREF="#module_8"><SUB>8</SUB></A>
     &lt;&lt;call main procedures&gt;&gt;<A HREF="#module_5"><SUB>5</SUB></A>
+    &lt;&lt;sub map_to_output_format&gt;&gt;<A HREF="#module_15"><SUB>15</SUB></A>
+    &lt;&lt;sub match&gt;&gt;<A HREF="#module_18"><SUB>18</SUB></A>
 </PRE>
 <P><A NAME="module_2"></A><HR NOSHADE SIZE=1></HR>2. an outline of the program in logical order.
 </P>
@@ -382,12 +384,12 @@ sub set_sign {
 =head sub map_to_output_format
 
 filters input lines, returning only the fields found in the output format (in correct order).
-Takes a reference to a hash and returns an array of strings with comma-separated fields.
+Takes a reference to a hash and returns a hash with numbered keys and values being strings of comma-separated fields.
 =cut
 
 sub map_to_output_format {
     my $hash = shift @_;
-    my @output_array2;
+    my %output_hash;
     my $compare = $conf-&gt;get_formats-&gt;{out}-&gt;{fields};
     my @output_array1 = ();
     foreach my $key (sort keys %{$hash}){
@@ -401,23 +403,121 @@ sub map_to_output_format {
                 }
             }
         } 
-        push (@output_array2, "@output_array1");  
+        $output_hash{$key} = "@output_array1");  
         @output_array1 = (); #reset @output_array :(      
     }
-    return @output_array2;
+    return %output_hash;
 }
 </PRE>
 <P><A NAME="module_16"></A><HR NOSHADE SIZE=4></HR><B>16. *.</B>#*looking for matches
 </P>
 
-<P>NOTE: this step could really happen anywhere in the chain. Now it's at the end, but technically some information is lost if we discard some of the fields so if we really want to discard those fields but we do want to use them for matching against, we could conceivably call the matching subroutine earlier in the program. Then we would need to adapt it since from read-in onwards the data has been in a complex data structure and the matching assumes its (back) in format of an array of strings. Of course, since the matching uses an index variable, we could do it immediately upon import and things should match up at the end. Or we could adapt the subroutine to be called a line at a time from inside the <CODE>&parse_lines</CODE> subroutine. ENDNOTE
+<P>After parsing, transforming and mapping the input, we can look for matches with accounts based on strings we have encountered already. First, therefore, we need a file of accounts and match strings. It will be in the format:
+</P>
+
+<P><pre>account_name|comma-separated,list of,strings to match</pre>
+</P>
+
+<P>The account name is the account to balance against the account of the import data (i.e., if the import concerns a checking account, the accounts in the account list will be used for the expense/income etc. accounts on the opposite side of the transaction).
+</P>
+
+<P><A NAME="module_17"></A><HR NOSHADE SIZE=1></HR>17. compare input lines to match strings
+</P>
+
+<P>the matching subroutine takes the array we got back from the <CODE>map_to_output_format</CODE> subroutine, compares each line to the the lines from the account/match strings list, and passes on each input line with, if it finds a match, the account and the match strings in the following format:
+</P>
+
+<P><pre>fields,of,input,line=>matching_account=>strings,which,matched</pre>
+</P>
+
+<P>to do this, we first need to read in the account file and put it in a hash structure. This looks a lot like the <CODE>&parse_input</CODE> subroutine, but we don't need the extra layer of line indexes. Therefore, once we get the contents of the file in an array from the <CODE>&read_from_file</CODE> sub, we'll pass it to the following subroutine to get back a simple hash:
+</P>
+
+<PRE>
+&lt;&lt;sub import_account_match_list&gt;&gt; =
+
+    =head sub import_account_match_list
+
+    converts lines from the canonical account list into a hash with account names as key and match strings as value. Takes an array and returns a hash.
+    =cut
+
+    sub import_account_match_list {
+        while (@_){
+		    chomp;
+		    my %hash;
+		    my ($acct_name, $match_strings) = split /\|/;
+		    $hash{$acct_name} = $match_strings;
+	    }
+	    return %hash;
+    }
+</PRE>
+<P><A NAME="module_18"></A><HR NOSHADE SIZE=1></HR>18. matching to accounts
+</P>
+
+<P>now comes the part where we do what it says on the tin. The subroutine takes the latest hash, takes a line at a time, compares each match string in turn to that line, and if a match string matches, records the associated account name; it then puts this all into a data structure to which it returns a reference.
+</P>
+
+<PRE>
+&lt;&lt;sub match&gt;&gt; =
+
+    =head sub match
+    compares input lines to match strings, adding each account that matches and recording which string matched.
+    Returns a reference to the resulting data structure (which contains the input line, the account, andd the match strings in a hash referenced by the index).
+    Takes two hash references (to input lines as returned from |&amp;map_to_output_format|, and to accounts/match strings as returned from |&amp;import_account_match_list|).
+    =cut
+
+    sub match {
+       my $input_hash = shift @_;
+        my $accounts_hash = shift @_;
+        my %output_hash;
+	    my $index = 0;
+	    foreach my $parsed_key( keys %{$input_hash}){
+	        $output_hash{$parsed_key}{input_line}=${$input_hash}{$parsed_key};
+		    my @match_list;
+		    my $current_input_line = ${$input_hash}{$parsed_key};
+		    foreach my $acct_name ( keys %{$accounts_hash}){
+			    my @compare_array = split /,/, $accounts_hash-&gt;{$acct_name};
+			    foreach (@compare_array){
+				    my $string = $_;
+				    if ($current_input_line =~ /\b$string\b/){
+					    push(@match_list,$string);
+					    $output_hash{$parsed_key}{match_accout}=$acct_name; 				
+				    }
+			    }
+			    $output_hash{$parsed_key}{match_strings}="@match_list" ;
+		    }
+
+	    #	$index_lines += 1;
+
+	    }
+        return \%output_hash;
+    }
+</PRE>
+<P><A NAME="module_19"></A><HR NOSHADE SIZE=1></HR>19. print match results to intermediate file
+</P>
+
+<P>We have now completed the processing steps of the first pass; all that's left to do is print the results to the intermediate file and notify the user that the results are ready for inspection. To do this we're not going to use a subroutine; we're just going to write it out.
+</P>
+
+<P>Since this is the intermediate file we just name it 'intermediate', overwriting the previous intermediate file if it exists.
+</P>
+
+<P>We'll also print an announcement to standard output that we're done reading.
+</P>
+
+<P>This, by the way, closes out the <CODE>&read</CODE> subroutine, though we have not encountered it yet. Besides this plumbing code, it will call the subroutines we have seen above.
+</P>
+
+<P><A NAME="module_20"></A><HR NOSHADE SIZE=4></HR><B>20. *.</B>#*Pass 2: writing
 </P>
 
 <UL>
 <LI>call main procedures: 1, <EM>5</EM>
 <LI>sub call_transforms: <EM>13</EM>
 <LI>sub determine_action: 1, <EM>4</EM>
-<LI>sub map_to_output_format: <EM>15</EM>
+<LI>sub import_account_match_list: <EM>17</EM>
+<LI>sub map_to_output_format: 1, <EM>15</EM>
+<LI>sub match: 1, <EM>18</EM>
 <LI>sub parse_input: <EM>10</EM>
 <LI>sub read_configuration: 1, <EM>8</EM>
 <LI>sub read_file: <EM>7</EM>
