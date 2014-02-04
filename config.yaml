@@ -1,0 +1,83 @@
+---
+accounts:
+
+#   #checking and savings accounts.
+#    required fields:
+#        holder
+#        format: keyword from formats hash
+
+    hans-checking:
+        holder: hans
+        format: ing
+    em-checking:
+        holder: emmaly
+        format: rabo
+    em-saving:
+        holder: emmaly
+        format: rabo
+    shared-checking:
+        holder: shared
+        format: asn
+    shared-saving:
+        holder: shared
+        format: asn
+
+
+#    #ov accounts.
+#    required fields:
+#        holder
+#        format: keyword from formats hash
+#        associated_checking: account name as used by financial management program
+#        associated_expense: account name as used by financial management program
+
+    hans-ov:
+        holder: hans
+        format: ov
+        associated_asset: hans-checking
+        associated_expense: travel
+    em-ov:
+        holder: emmaly
+        format: ov
+        associated_asset: em-checking
+        associated_expense: travel
+
+
+#   #formats
+#    a hash with format names corresponding to input CSV formats.
+#    Each format name is a hash with the following required key, value pairs:
+#        fields: a comma-separated string of ALL fields in order of the input CSV
+#        transforms: dictionary of transformations to run. Key is a name of a subroutine from transforms package.
+#           name: comma-separated list of arguments to pass to subroutine.
+#        mapping: a dictionary with standardized (output) field as key and input field (from fields above) as value.
+#           output: input
+             
+formats:
+    ing:  
+        fields:        account,date,volgnr,amount,A/B,desc
+        transforms:
+            set_sign:  deb_cred_flag,B,A
+        mapping: # target field <-- source field
+            account: transfer_account
+            date: date
+
+    rabo:
+        fields:         rabo,format,also,works
+        deb_cred:       
+        deb_cred_flag:  
+            debit:      
+            credit:     
+    asn:
+        fields:         rabo,format,also,works
+        deb_cred:       ha
+        deb_cred_flag:  
+            debit:      A
+            credit:     
+    ov:
+        fields:         rabo,format,also,works
+        mappings:
+        transforms:
+            amount: 
+        deb_cred:       
+        deb_cred_flag:  
+            debit:      
+            credit:     

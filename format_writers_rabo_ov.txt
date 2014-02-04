@@ -1,0 +1,71 @@
+#filetype test
+if( $ARGV[0] !~ /\A(ov|ing|rabo)\Z/){
+        die "first argument needs to be the type of input file, one of: (ov, ing, rabo).";
+} elsif ($ARGV[0] eq 'ov'){
+        $filetype = 'ov';
+  } elsif ($ARGV[0] eq 'ing'){
+          $filetype = 'ing';
+        } elsif ($ARGV[0] eq 'rabo'){
+                $filetype = 'rabo';
+      }
+
+
+#different processing for different types
+if ($filetype eq 'ov'){
+	while (<INPUT_FH>) {
+		s/"//g;
+
+		($date, $timein, $checkin, $timeout, $checkout, $num, $trans, $cat, $class, $prod, $opmerking) = split /;/;
+		$amount = $num =~ s/\,/\./r;
+		
+		if ($trans =~ m/Reis/) {
+			#$amount = -$amount;
+			#$transfer = "travel";
+		} elsif ($trans =~ m/Saldo/) {
+			#$amount = $amount;
+			#$transfer = "ch Hans";
+		} elsif ($trans =~ m/Check-in/){
+			#$amount = $amount;
+			
+		}
+		
+		$comment_concat = "$timein" . "$checkin" . " $timeout " . "$checkout";
+	 
+	    if (!($trans =~ m/Check-in/)){
+			print OUTPUT_FH "$date;$comment_concat;$amount;$transfer\n";
+	   }
+	}
+
+}
+
+
+
+elsif ($filetype eq 'ing'){
+	while (<INPUT_FH>) {
+			s/"//g;	
+			
+	my ($account_no, $date, $code, $volgnr, $transfer_account, $payee, $empty, $amount, $deb_cred, $m, $desc, $currency) = split /,/;
+	
+	if ($deb_cred eq 'D'){
+		$amount = -$amount;
+	}
+	
+	print OUTPUT_FH "$date;$amount;$transfer_account;$payee;$type;$desc\n";
+	}
+}
+
+elsif ($filetype eq 'rabo'){
+	while (<INPUT_FH>) {
+			s/"//g;	
+			
+	my ($account_no, $currency, $date, $deb_cred, $amount, $transfer_account, $payee, $date_2, $type, $unknown, $desc1, $desc2, $desc3, $desc4, $desc5, $desc6, $desc7, $desc8, $desc9, ) = split /,/;
+	
+	if ($deb_cred eq 'D'){
+		$amount = -$amount;
+	}
+	
+	
+	print OUTPUT_FH "$date;$amount;$transfer_account;$payee;$type;$desc1\n";
+	
+	}
+}

@@ -1,65 +1,426 @@
 <HTML>
-<HEAD><TITLE>perlweb/csvbankin.web</TITLE></HEAD>
+<HEAD><TITLE>csvbankin-narrative</TITLE></HEAD>
 <BODY>
-<P><A NAME="module_1"></A><HR NOSHADE SIZE=4></HR><B>1. csvbankin -- a scrip to parse csv bank statements and remember account mappings.</B>
+<P><A NAME="module_1"></A><HR NOSHADE SIZE=4></HR><B>1. *.</B>#*csvbankin
 </P>
 
 <PRE>
-#p this unnamed module begins the perl source.
-
-    \#!/usr/bin/perl -w
-
+#p 
+    use warnings;
     use strict;
-    &lt;&lt;Start of program&gt;&gt;<A HREF="#module_4"><SUB>4</SUB></A>
+    use YAML::Syck;
+    use YAML::AppConfig;
+    use Getopt::Long;
+    Getopt::Long::Configure ('bundling');
+    &lt;&lt;sub determine_action&gt;&gt;<A HREF="#module_4"><SUB>4</SUB></A>
+    &lt;&lt;sub read_configuration&gt;&gt;<A HREF="#module_8"><SUB>8</SUB></A>
+    &lt;&lt;call main procedures&gt;&gt;<A HREF="#module_5"><SUB>5</SUB></A>
 </PRE>
-<P><A NAME="module_2"></A><HR NOSHADE SIZE=1></HR>2. Introduction
+<P><A NAME="module_2"></A><HR NOSHADE SIZE=1></HR>2. an outline of the program in logical order.
 </P>
 
-<P>    csvbankin is a tool which is almost done, and I'm trying to make it too perfect. So I'm going to stop trying to make it too perfect; but I'm still holding onto the dream of perfection so I'm trying to finish it with a bit of overhead ... this PerlWEB literate programming system and a full ticketing of my progress in git(hub).
-    Note that since this is getting committed to the repo, everyone will be able to read all about my sillyness for the duration, even if I delete this (which I will as I get going with the 'real' documentation). The point, anyways, is to document my program.
+<P>the core of the program is three things:
 </P>
 
-<P><A NAME="module_3"></A><HR NOSHADE SIZE=4></HR><B>3. *.</B>#*Introduction to csvbankin
+<P>1. parsing the fields of the input file and selecting a standardized set of these
+2. matching an account to each input line, by looking for known match strings
+3. remembering new account/match string combinations.
 </P>
 
-<P>    <CODE>Csvbankin</CODE> parses diverse csv bank statements to a single format and remembers mappings of transactions to accounts. It is intended to prepare statements from different banks, which might all have different csv formats for their statements, to one standardized format for import into a finance management program. The need arose for me because <CODE>Moneyguru</CODE>, the package I was using, has a good csv import routine that can remember what accounts to map transactions to given the presence of a field with an internal account name, but it can't derive those account names from the text of the transaction itself. So, that's the second thing <CODE>csvbankin</CODE> does: it learns to recognize which account a transaction should be mapped to based on match strings in the text of the input file.
+<P>the program runs in two passes: the first two steps in the first pass, the third step in the second pass. Let's look at what is needed for each of these.
 </P>
 
-<P><A NAME="module_4"></A><HR NOSHADE SIZE=1></HR>4. Structure of the program
+<P><A NAME="module_3"></A><HR NOSHADE SIZE=1></HR>3. A note about structure: subroutine chaining.
 </P>
 
-<P>    To accomplish this purpose, <CODE>csvbankin</CODE> runs in two steps. First, it parses the lines from the input file, and compares them to its list of accounts and match strings to determine what accounts go with each transaction. It prints these matches in an intermediate file which the user must inspect, adding new match strings and account names. Second, <CODE>csvbankin</CODE> reads this intermediate file to produce the final output file, and adds any new account names and match strings to its list to use next time. The idea is that over time, the amount of manual intervention decreases, because <CODE>csvbankin</CODE> remembers more and more matches.
+<P>the program is structured as much as possible into subroutines that take input and provide output. So a lot of the actual body of the program will look like this:
 </P>
 
-<P>    <b>libraries</b>
+<P>bar = subroutine(foo);
+baz = subroutine(bar);
+bim = subroutine(baz);
 </P>
 
-<P>    <CODE>csvbankin</CODE> makes use of the following libraries:
+<P>etc.
 </P>
 
-<P>    <ul>
-        <li>YAML::AppConfig</li>
-    </ul>
+<P>In the following, I will generally first describe the subroutines and show their code, and at the end describe how they are used and show the blocks of code that call the subroutines.
+</P>
+
+<P><A NAME="module_4"></A><HR NOSHADE SIZE=1></HR>4. determine what to do
+</P>
+
+<P>before we start reading in data, we need to determine what ne need to do.
 </P>
 
 <PRE>
-&lt;&lt;Start of program&gt;&gt; =
+&lt;&lt;sub determine_action&gt;&gt; =
+    =head1 sub determine_action
+    takes the invocation arguments, returns a hash of the option values and the name of the input file (if any), and sets the flags for read and write.
 
-    =head1 test
+    =head3 declare a hash to be used for our options
+    =cut
 
-    does an inline comment work here? no??
+    my %h = ();
+    GetOptions (\%h, 'r|read', 'w|write', 'o|output=s', 'a|account=s'); # THIS SHOULD BE IN GLOBAL NAMESPACE!
+    my ($output,$read,$write,$name_or_type_b,$input_account);
+
+    =head3
+        determine course to take based on invocation options and arguments.
+        abort execution if certain option combinations are not satisfied.
+        otherwise set read and write flags and run preliminary subroutines
+        (read
+    =cut
+
+    my $argument = shift @ARGV;
+
+    if($h{r}==1){
+        if(!$h{a} or $h{a}eq''){
+            print "in read mode, need an account type or name! exiting.\n";
+            exit;
+        }# ^^ r but not a
+        elsif($h{a} and !$h{a}eq''){
+            ($input_account, $name_or_type_b) = resolve_input_account($h{a});
+            $read = 1;
+        }# ^^ r and a
+    }
+    if(defined $h{w}){
+        if (!$h{o} or $h{o}eq''){
+            print "in write mode, need output filename! exiting.\n";
+            exit;
+        }# ^^ w but not o
+        elsif($h{o} and !$h{o}eq''){
+                $output = $h{o};
+                print "assigned o value $h{o} to \$output!\n";
+                $write = 1;
+        }# ^^ w and o
+    }else{
+        if (!$h{o}eq''){
+            print "no point specifying output file if not in write mode! exiting.\n";
+            exit;
+        }# ^^ o but not w
+        elsif(!$h{o} or $h{o}eq''){
+
+            print "neither o nor w specified, I hope we have something to read!\n";
+        }# ^^ neither o nor w
+    }
+</PRE>
+<P><A NAME="module_5"></A><HR NOSHADE SIZE=1></HR>5. read and/or write?
+</P>
+
+<P>after looking at the options and checking to make sure that all combinatorial conditions are satisfied, we can decide how to proceed. We do this.
+</P>
+
+<P>Note that the program can run both passes immediately. This could conceivably be done if you're certain you've got most of the mappings correct, but in practice you'll usually want to check the mappings manually in between the two passes.
+</P>
+
+<PRE>
+&lt;&lt;call main procedures&gt;&gt; =
+
+    &amp;read if $read;
+    &amp;write if $write;
+</PRE>
+<P><A NAME="module_6"></A><HR NOSHADE SIZE=4></HR><B>6. pass 1: reading and parsing input.</B>
+</P>
+
+<P>to do anything useful, firstly we need an input file.
+</P>
+
+<P><A NAME="module_7"></A><HR NOSHADE SIZE=1></HR>7. read in the file
+</P>
+
+<P>this is actually a reuseable subroutine. the first thing we need it for is to read in our input file (a bank statement or whatnot).
+</P>
+
+<PRE>
+&lt;&lt;sub read_file&gt;&gt; =
+
+    TODO
+</PRE>
+<P><A NAME="module_8"></A><HR NOSHADE SIZE=1></HR>8. loading the config
+</P>
+
+<P>For step 1 we need to know the format of the input file and the mapping of this format to our output format. For step 2 we need to have a list of accounts and associated strings which, when found in an input string, indicate the transation should go to or come from this account.
+</P>
+
+<P>The point of csvbankin is to be able to process many input formats. So to keep the format configuration extensible we use a YAML configuration file. the account list is kept in a different 'data' file which is a simple delimited text file.
+</P>
+
+<P>The first thing we need, then, is to load the config. To do so we use YAML::AppConfig which itself uses a YAML parser; we use YAML::Syck. We said to <CODE>use</CODE> these modules in the start of the program, at the top of this file.
+</P>
+
+<P>With these libraries available we can read the configuration file into our program. We do so by creating a new YAML::AppConfig object with the necessary methods and of course the contents of the config file read into a data structure.
+</P>
+
+<PRE>
+&lt;&lt;sub read_configuration&gt;&gt; =
+
+    =head1 sub read_configuration
+
+    takes a filename (string) and returns a reference to an AppConfig object with the file's data structure.
 
     =cut
 
-    my $variable = "Hello, world!";
-
-    print "$variable\n";
+    sub read_configuration {
+        open my $fh, '&lt;', $_[0] 
+          or die "can't open config file: $!";
+        my $string;
+        {
+            local $/ = undef;
+            binmode $fh;
+            $string = &lt;$fh&gt;;
+            close $fh;
+        }
+        my $conf = YAML::AppConfig-&gt;new(string =&gt; $string);
+        return $conf;
+    }
 </PRE>
-<P><A NAME="module_5"></A><HR NOSHADE SIZE=1></HR>5. Another documentation heading
+<P><A NAME="module_9"></A><HR NOSHADE SIZE=1></HR>9. the configuration file I: accounts and formats
 </P>
 
-<P>    this <em>should</em> turn out right ...
+<P>this isn't perl code, but it's important to know how to use the config file. For the full format, look in the file itself. Here some notes on the most important features:
+</P>
+
+<P>* the assumption is that each input class is associated with one asset account in a double-entry bookkeeping system. We most likely want to identify the input by the the name of the account it's going into. (the program could also process unnamed accounts if it knows the format. For now that has not yet been tested so always identify the input by account name).
+</P>
+
+<P>* so in the config we will have a section called 'accounts'. The most basic type, a checking or savings account, looks like this:
+</P>
+
+<P><pre>
+</P>
+<P>    hans-checking:
+        holder: hans
+        format: bic
+</P>
+<P></pre>
+</P>
+
+<P>you can use this program for other kinds of statements too, like a chip card used for electronic public transit payments. This might need more fields, like the associated asset account from which balance top-ups should be credited.
+</P>
+
+<P>The name of this entry should be the exact name of the account in your finance program.
+</P>
+
+<P>* the next section is the formats referenced by the account definitions. They look like this:
+</P>
+
+<P><pre>
+</P>
+<P>    formats:
+        bic:
+            delimiter: ,
+            fields: comma,separated,list,of,all,fields,in,input,format
+            transforms:
+                subroutine: parameters,to,pass
+            mappings:
+                output_field: input_field
+</P>
+
+<P>    default_output_format: boc
+</P>
+<P></pre>
+</P>
+
+<P>We'll get to the transforms and the mappings in the next two steps. For now, we only need to look at the fields, which we will use to parse the input. Oh, and the delimiter is also an important one!
+</P>
+
+<P>note that the output format is just an entry in the formats list like any other. This means that there can be multiple output formats. The (default) output format can be specified with the seperate configuration option: output_format. When used for output, only the fields value is necessary, but this means you can use this program to convert between any of the input formats if you want (though in practice, this will mostly break because the fields will be too different. It could be accomplished with mappings, but that isn't implemented for now.
+</P>
+
+<P>Now we have the file, the format it's in, and the format it should be converted to, we can proceed to process the file.
+</P>
+
+<P><A NAME="module_10"></A><HR NOSHADE SIZE=1></HR>10. parsing the input
+</P>
+
+<P>The first step here consists simply of reading the lines of the input file one at a time, splitting on the delimiter, and assigning each field to a variable named for the correct fieldname. If this were hardcoded we could do it with scalar variables inside the loop, like so:
+</P>
+
+<P><pre>
+</P>
+<P>    ($field1,$field2,$field3) = split /,/, $current_input_line;
+</P>
+<P></pre>
+</P>
+
+<P>But because we want to keep the account formats fully configurable apart from the code, we need to do a bit more than this to get the mapping right. What we end up with is a two-level hash data structure. Each key of the hash is an incrementing numerical value for all the lines in the input file, and the value is a reference to another hash where the key-value pairs are the field name and the value which has been assigned to it. This was the solution I thought of to be able to interpolate the configuration variables as name identifiers of the values, and get things in order.
+</P>
+
+<PRE>
+&lt;&lt;sub parse_input&gt;&gt; =
+
+=head1 sub parse_input
+
+takes an array of strings (delimited text) and returns a hash structure of the delimited values matched to field names.
+
+=cut
+
+sub parse_input {
+    my $index = 0;
+    my %parsed_lines;
+    foreach (@_){
+        my @fields = split /,/, $_;
+        foreach my $key (split /,/, $conf-&gt;get_formats-&gt;{ing}-&gt;{fields}){
+            my $current_field = shift @fields;
+            $parsed_lines{$index}-&gt;{$key} = $current_field;
+        }
+        $index += 1;
+    }
+
+    ## yeah.
+    return %parsed_lines;
+}
+</PRE>
+<P><A NAME="module_11"></A><HR NOSHADE SIZE=1></HR>11. Processing the parsed lines: transformations and mapping.
+</P>
+
+<P>Now we have a representation of the data in its input format that the program can deal with. We can now massage it into the output format. The essential thing to do is to select the fields which correspond to the fields we want in the output format, put them in order, and print them out. But we most likely need to do some processing before this is possible. Here are two examples which have already been implemented.
+</P>
+
+<P><A NAME="module_12"></A><HR NOSHADE SIZE=1></HR>12. debit/credit field or negative sign?
+</P>
+
+<P>Some formats use a debit/credit field to indicate the direction of a transaction. Others use a negative sign on the amount field to indicate this. Either way, we want to standardize on this in our output; and my choice is to go with the sign since that reduces the complexity of the data structure. Here is a subroutine that does this:
+</P>
+
+<PRE>
+&lt;&lt;sub set_sign&gt;&gt; =
+
+    =head sub set_sign
+
+        adds a negative sign to an amount field based on the value in a debit/credit flag field.
+        takes 4 args:
+            *debit/credit field
+            *value indicating credit
+            *value indicating debit
+            *the value to change
+        returns: none
+
+    =cut
+
+sub set_sign {
+    my ($sign_field, $pos_sign, $neg_sign, $vol) = @_;
+    my $value = \%main::parsed_lines-&gt;{0}-&gt;{$vol};
+    if ($conf-&gt;get_formats-&gt;{$main::current_format}-&gt;{$sign_field}-&gt;{debit} eq $neg_sign){
+       ${$value} = -${$value};
+    }
+}
+</PRE>
+<P><A NAME="module_13"></A><HR NOSHADE SIZE=1></HR>13. reusable, extensible 'plugin' transformations
+</P>
+
+<P>This is probably the most obvious transformation needed. Another one that I need is specific to an electronic payment card for public transit. Based on the field 'checkin/checkout' the transaction needs to be set as coming from the associated checking account, or going to the associated expense account. In other words, two fields need to be modified based on one other field. The details are not important: the point is that arbitrary transformations could be needed depending on the input and output formats. Ideally, these can be specified in the configuration file and be reusable to a greater or lesser extent.
+</P>
+
+<P>We can try to specify this with an API. This puts certain constraints on the plugins. The idea is that plugins should be as reusable as possible, so as much as possible should be specified in the configuration file; but we can 'hardcode' the plugins to solve a particular problem if this is necessary. So how will we agree on this?
+</P>
+
+<P>To show this, first here is how the transforms are specified in the configuration file:
+</P>
+
+<P><pre>
+</P>
+<P>    transforms:
+        set_sign:  deb_cred_flag,B,A,amount
+</P>
+<P></pre>
+</P>
+
+<P>It's quite simple: we have the name of the transformation operation (this must be a subroutine in the transforms package), and a comma-separated list of arguments to pass the subroutine. In this case (the set_sign subroutine we saw above), these are the fieldname with the debit/credit flag, the positive and negative values, and the field to modify. So you see these could be changed if we want to use this transform on a different input format which has a different fieldname or different values in the field.
+</P>
+
+<P>That means our code needs to be able to run the subroutine without knowing the names and the arguments beforehand, or even how many transforms to apply. It needs to have a section where it simply loops through all the keys it finds in the config file, and runs the subroutine named by the key, passing it the argument list found in its value. We can do this with a foreach loop.
+</P>
+
+<PRE>
+&lt;&lt;sub call_transforms&gt;&gt; =
+
+    =head sub call_transforms
+
+        runs all transforms for the current input data
+
+        returns: none
+
+    =cut
+
+    sub call_transforms {
+        local $" = ',';
+        foreach my $transform (sort keys $conf-&gt;get_formats-&gt;{$current_format}-&gt;{transforms}){
+            my $sub_name = $transform;
+            my $sub = "transforms::".$sub_name;
+            my $sub_argsin = $conf-&gt;get_formats-&gt;{$current_format}-&gt;{transforms}-&gt;{$sub_name};
+            my @sub_args = split /,/, $sub_argsin;
+            &amp;{$sub}(@sub_args);
+    }
+}
+</PRE>
+<P><A NAME="module_14"></A><HR NOSHADE SIZE=1></HR>14. further notes on the transforms API
+</P>
+
+<P>There is still a considerable amount of 'shared knowledge' required across the API bridge. But in principle it is possible to code an transformation plugin so that it is reusable on a different format without changing its code. Furthermore, while on the topic of their design, it is important to note that
+</P>
+
+<P><ul>
+</P>
+<P>    <li>there is no API for accessing the variables are in the data structure in the main program (the programmer needs to know what their names are in main::), and </li>
+    <li>the subroutine needs to take care of all looping controls itself. I.e., a plugin will most likely need to loop over every entry in the %parsed_lines datastructure, but it needs to take care of that itself; in the call_transforms definition above, each subroutine is simply called once with an argument list, and that's it.</li>
+    <li> subroutines are called one by one, and order may be important if multiple transforms affect the same fields. The <CODE>&call_transforms</CODE> subroutine is kind enough to sort the transforms by name before calling them in turn, so if order is important you can name your transforms with numbers at the beginning, like 01_, 02_.</li>
+</P>
+<P></ul>
+</P>
+
+<P><A NAME="module_15"></A><HR NOSHADE SIZE=1></HR>15. mapping to the final output format
+</P>
+
+<P>Once we have processed the data to our satisfaction with transforms, all we need to do before we can start matching accounts is to map the input to the output format: essentially filter the fields we want and put them in the right order.
+</P>
+
+<PRE>
+&lt;&lt;sub map_to_output_format&gt;&gt; =
+
+=head sub map_to_output_format
+
+filters input lines, returning only the fields found in the output format (in correct order).
+Takes a reference to a hash and returns an array of strings with comma-separated fields.
+=cut
+
+sub map_to_output_format {
+    my $hash = shift @_;
+    my @output_array2;
+    my $compare = $conf-&gt;get_formats-&gt;{out}-&gt;{fields};
+    my @output_array1 = ();
+    foreach my $key (sort keys %{$hash}){
+        foreach my $inner_key (sort keys %{$hash}-&gt;{$key}){
+            my $current_value = ${$hash}{$key}{$inner_key};
+            my $current_field = $inner_key;
+
+            foreach my $comp (split /,/, "$compare"){
+                if ($current_field eq $comp){
+                    push (@output_array1, "$current_value,");
+                }
+            }
+        } 
+        push (@output_array2, "@output_array1");  
+        @output_array1 = (); #reset @output_array :(      
+    }
+    return @output_array2;
+}
+</PRE>
+<P><A NAME="module_16"></A><HR NOSHADE SIZE=4></HR><B>16. *.</B>#*looking for matches
+</P>
+
+<P>NOTE: this step could really happen anywhere in the chain. Now it's at the end, but technically some information is lost if we discard some of the fields so if we really want to discard those fields but we do want to use them for matching against, we could conceivably call the matching subroutine earlier in the program. Then we would need to adapt it since from read-in onwards the data has been in a complex data structure and the matching assumes its (back) in format of an array of strings. Of course, since the matching uses an index variable, we could do it immediately upon import and things should match up at the end. Or we could adapt the subroutine to be called a line at a time from inside the <CODE>&parse_lines</CODE> subroutine. ENDNOTE
+</P>
+
 <UL>
-<LI>Start of program: 1, <EM>4</EM>
+<LI>call main procedures: 1, <EM>5</EM>
+<LI>sub call_transforms: <EM>13</EM>
+<LI>sub determine_action: 1, <EM>4</EM>
+<LI>sub map_to_output_format: <EM>15</EM>
+<LI>sub parse_input: <EM>10</EM>
+<LI>sub read_configuration: 1, <EM>8</EM>
+<LI>sub read_file: <EM>7</EM>
+<LI>sub set_sign: <EM>12</EM>
 </UL>
 </BODY></HTML>
