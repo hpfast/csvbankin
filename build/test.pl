@@ -15,7 +15,7 @@ my ($output,$read,$write,$name_or_type_b,$input_account);
 determine course to take based on invocation options and arguments.
 abort execution if certain option combinations are not satisfied.
 otherwise set read and write flags and run preliminary subroutines
-(read
+(read)
 =cut
 my $argument = shift @ARGV;
 if($h{r}==1){
@@ -65,7 +65,7 @@ sub read_configuration {
 }
 &read if $read;
 &write if $write;
-=head sub map_to_output_format
+=head1 sub map_to_output_format
 filters input lines, returning only the fields found in the output format (in correct order).
 Takes a reference to a hash and returns a hash with numbered keys and values being strings of comma-separated fields.
 =cut
@@ -89,7 +89,7 @@ sub map_to_output_format {
   }
   return %output_hash;
 }
-=head sub match
+=head1 sub match
 compares input lines to match strings, adding each account that matches and recording which string matched.
 Returns a reference to the resulting data structure (which contains the input line, the account, andd the match strings in a hash referenced by the index).
 Takes two hash references (to input lines as returned from |&map_to_output_format|, and to accounts/match strings as returned from |&import_account_match_list|).
@@ -117,3 +117,44 @@ sub match {
   }
   return \%output_hash;
 }
+=head2 sub compare_intermediate_to_canonical
+takes the lines of the intermediate file and of the canonical account file, each as a referenced array, and comares them to see if there are any new accounts or match strings. Returns two arrays: the lines from the intermediate file ready for final output, and the updated account list as strings in an array.
+=cut
+sub compare_intermediate_to_canonical {
+  my $intermediate_list = shift @_; #or do we need references? or do we need to call $_[0,1]?
+  my @canonical_list = shift @_;
+  foreach my $intermediate_line (@{$intermediate_list}){
+    (my $processed_transaction_line, my $temp_acct_name, my $temp_match_strings, my $temp_delete_strings) = split /===>/, $intermediate_line;
+    $counter{$temp_acct_name}=0;
+    foreach my $canonical_line (@{$canonical_list}){
+      (my $canonical_acct_name, my $canonical_match_strings) = split /\|/, $canonical_line;
+      if ($temp_acct_name eq $canonical_acct_name){
+        if (!$counter{$temp_acct_name}){
+          $counter{$temp_acct_name} += 1;
+          if ($canonical_match_strings !~ /$temp_match_strings/){
+            my $new_canonical_line = $intermediate_line;
+            print "I found one that didn't match! $canonical_line => $new_canonical_line => $counter{$temp_acct_name}\n";
+            $output_accounts{$canonical_acct_name}=$temp_match_strings;
+            next;
+            else{
+              $output_accounts{$canonical_acct_name}=$temp_match_strings;
+            }
+          }
+        }elsif(! grep /$temp_acct_name/, @canonical_list){
+          if($counter{$temp_acct_name} < 1){
+            $counter{$temp_acct_name} += 1;
+            my $unknown_line = $intermediate_line;
+            print "I found an unknown line! $unknown_line\n";
+            if(! $temp_acct_name == ''){
+              $output_accounts{$temp_acct_name}=$temp_match_strings;
+            }
+            next;
+          }
+        }elsif(! grep /$canonical_acct_name/, @intermediate_list){
+          $output_accounts{$canonical_acct_name}=$canonical_match_strings;
+        }#this just passes on any unmodified ones
+      }
+      push(@processed_transaction_lines,"$temp_acct_name;$processed_transaction_line");
+    }
+    return (@processed_transaction_lines, %output_accounts);
+  }

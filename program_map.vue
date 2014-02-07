@@ -1,14 +1,14 @@
-<!-- Tufts VUE 3.2.2 concept-map (program_map.vue) 2014-01-29 -->
+<!-- Tufts VUE 3.2.2 concept-map (program_map.vue) 2014-02-05 -->
 <!-- Tufts VUE: http://vue.tufts.edu/ -->
 <!-- Do Not Remove: VUE mapping @version(1.1) jar:file:/home/hans/bin/VUE.jar!/tufts/vue/resources/lw_mapping_1_1.xml -->
-<!-- Do Not Remove: Saved date Wed Jan 29 21:46:41 CET 2014 by hans on platform Linux 3.9-1-amd64 in JVM 1.6.0_27-b27 -->
+<!-- Do Not Remove: Saved date Wed Feb 05 08:40:34 CET 2014 by hans on platform Linux 3.9-1-amd64 in JVM 1.6.0_27-b27 -->
 <!-- Do Not Remove: Saving version @(#)VUE: built May 23 2013 at 2146 by tomadm on Linux 2.6.18-348.2.1.el5 i386 JVM 1.7.0_21-b11(bits=32) -->
 <?xml version="1.0" encoding="US-ASCII"?>
 <LW-MAP xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:noNamespaceSchemaLocation="none" ID="0" label="program_map.vue"
     created="1390753377416" x="0.0" y="0.0" width="1.4E-45"
     height="1.4E-45" strokeWidth="0.0" autoSized="false">
-    <resource referenceCreated="1391028401708"
+    <resource referenceCreated="1391586034372" size="71402"
         spec="/home/hans/Private/annex1/materials/csvbankin/program_map.vue"
         type="1" xsi:type="URLResource">
         <title>program_map.vue</title>
@@ -1234,7 +1234,7 @@
         y="0.0" width="1.4E-45" height="1.4E-45" strokeWidth="0.0" autoSized="false">
         <URIString>http://vue.tufts.edu/rdf/resource/cf92f3547f0001013681e09f80d11d1c</URIString>
     </layer>
-    <userZoom>1.0</userZoom>
+    <userZoom>0.025315262628080874</userZoom>
     <userOrigin x="-193.0" y="-281.6"/>
     <presentationBackground>#202020</presentationBackground>
     <PathwayList currentPathway="0" revealerIndex="-1">

@@ -12,6 +12,7 @@
     #<call main procedures#>
     #<sub map_to_output_format#>
     #<sub match#>
+    #<sub compare_intermediate_to_canonical#>
 
 # an outline of the program in logical order.
 
@@ -56,7 +57,7 @@ before we start reading in data, we need to determine what ne need to do.
         determine course to take based on invocation options and arguments.
         abort execution if certain option combinations are not satisfied.
         otherwise set read and write flags and run preliminary subroutines
-        (read
+        (read)
     =cut
 
     my $argument = shift @ARGV;
@@ -203,7 +204,7 @@ But because we want to keep the account formats fully configurable apart from th
 
 #<sub parse_input#>=
 
-=head1 sub parse_input
+=head2 sub parse_input
 
 takes an array of strings (delimited text) and returns a hash structure of the delimited values matched to field names.
 
@@ -237,7 +238,7 @@ Some formats use a debit/credit field to indicate the direction of a transaction
 
 #<sub set_sign#>=
 
-    =head sub set_sign
+    =head1 sub set_sign
 
         adds a negative sign to an amount field based on the value in a debit/credit flag field.
         takes 4 args:
@@ -276,7 +277,7 @@ That means our code needs to be able to run the subroutine without knowing the n
 
 #<sub call_transforms#>=
 
-    =head sub call_transforms
+    =head1 sub call_transforms
         
         runs all transforms for the current input data
         
@@ -312,7 +313,7 @@ Once we have processed the data to our satisfaction with transforms, all we need
 
 #<sub map_to_output_format#>=
 
-=head sub map_to_output_format
+=head1 sub map_to_output_format
 
 filters input lines, returning only the fields found in the output format (in correct order).
 Takes a reference to a hash and returns a hash with numbered keys and values being strings of comma-separated fields.
@@ -360,7 +361,7 @@ to do this, we first need to read in the account file and put it in a hash struc
 
 #<sub import_account_match_list#>=
 
-    =head sub import_account_match_list
+    =head1 sub import_account_match_list
     
     converts lines from the canonical account list into a hash with account names as key and match strings as value. Takes an array and returns a hash.
     =cut
@@ -381,7 +382,7 @@ now comes the part where we do what it says on the tin. The subroutine takes the
 
 #<sub match#>=
 
-    =head sub match
+    =head1 sub match
     compares input lines to match strings, adding each account that matches and recording which string matched.
     Returns a reference to the resulting data structure (which contains the input line, the account, andd the match strings in a hash referenced by the index).
     Takes two hash references (to input lines as returned from |&map_to_output_format|, and to accounts/match strings as returned from |&import_account_match_list|).
@@ -407,9 +408,6 @@ now comes the part where we do what it says on the tin. The subroutine takes the
 			    }
 			    $output_hash{$parsed_key}{match_strings}="@match_list" ;
 		    }
-
-	    #	$index_lines += 1;
-
 	    }
         return \%output_hash;
     }
@@ -425,4 +423,109 @@ We'll also print an announcement to standard output that we're done reading.
 This, by the way, closes out the |&read| subroutine, though we have not encountered it yet. Besides this plumbing code, it will call the subroutines we have seen above.
 
 #*Pass 2: writing
+
+Ok. In the first pass, we dealt with the input. We read in the input lines, parsed its fields based on the format it was known to be in, and transformed and mapped the fields to the output format. Then we compared the lines to our known accounts by match strings, and printed out a file with the input lines and the matching accounts.
+
+In the interlude, the user can inspect this intermediate file, correcting faulty account assignments and adding new ones. Thus the intermediate file, which was the output of the |&read| routine's best guess at matching accounts, becomes the input for the |&write| routine's definitive matching and updating of the canonical account list. The main steps of the second pass, therefore, are:
+
+<ul>
+    <li>read in the intermediate file and the account list</li>
+    <li>check for new match strings and/or account names and update the account list</li>
+    <li>print the strings to an appropriately named final output file, and print the updated account list file.</li>
+</ul>
+
+# read in intermediate file
+
+using the subroutine defined earlier
+
+# read in account list file
+
+using the subroutine defined earlier
+
+# compare intermediate and canonical accounts
+
+Since we only really need to do one processing step here, we're not going to build up a complex data structure with references. Rather, the subroutine that does the comparing is just going to do each step in a large set of nested foreach loops and multi-way comparisons. We need to do the following comparisons:
+
+<pre>
+    if the new account name is not found in the canonical list: add it and all its match strings
+    if the new account name is already in the canonical list:
+        * if there are match strings that are not in the canonical list, add them
+        * if there are match strings marked for deletion, delete them from the canonical list (not implemented)
+    if the canonical account is not mentioned in the intermediate file, pass it along  untouched.
+</pre>
+
+Note that we
+
+This looks something like this:
+
+#<sub compare_intermediate_to_canonical#>=
+
+    =head2 sub compare_intermediate_to_canonical
+
+    takes the lines of the intermediate file and of the canonical account file, each as a referenced array, and comares them to see if there are any new accounts or match strings. Returns two arrays: the lines from the intermediate file ready for final output, and the updated account list as strings in an array.
+    
+    =cut
+
+    sub compare_intermediate_to_canonical {
+        my $intermediate_list = shift @_; #or do we need references? or do we need to call $_[0,1]?
+        my @canonical_list = shift @_;
+	    foreach my $intermediate_line (@{$intermediate_list}){
+		    (my $processed_transaction_line, my $temp_acct_name, my $temp_match_strings, my $temp_delete_strings) = split /===>/, $intermediate_line;
+        	$counter{$temp_acct_name}=0;
+		    foreach my $canonical_line (@{$canonical_list}){
+			    (my $canonical_acct_name, my $canonical_match_strings) = split /\|/, $canonical_line;
+		        if ($temp_acct_name eq $canonical_acct_name){
+			        if (!$counter{$temp_acct_name}){
+				        $counter{$temp_acct_name} += 1;
+				        if ($canonical_match_strings !~ /$temp_match_strings/){
+				            my $new_canonical_line = $intermediate_line;
+				            print "I found one that didn't match! $canonical_line => $new_canonical_line => $counter{$temp_acct_name}\n";
+				            $output_accounts{$canonical_acct_name}=$temp_match_strings;
+				            next;
+			            else{
+				            $output_accounts{$canonical_acct_name}=$temp_match_strings;
+			            }
+			        }
+		        }elsif(! grep /$temp_acct_name/, @canonical_list){
+			        if($counter{$temp_acct_name} < 1){
+				        $counter{$temp_acct_name} += 1;
+				        my $unknown_line = $intermediate_line;
+				        print "I found an unknown line! $unknown_line\n";
+				        if(! $temp_acct_name == ''){
+				            $output_accounts{$temp_acct_name}=$temp_match_strings;
+			            }
+				        next;
+			        }
+		        }elsif(! grep /$canonical_acct_name/, @intermediate_list){
+			        $output_accounts{$canonical_acct_name}=$canonical_match_strings;
+		        }#this just passes on any unmodified ones
+		    }		
+		    push(@processed_transaction_lines,"$temp_acct_name;$processed_transaction_line");
+	    }
+	    return (@processed_transaction_lines, %output_accounts);	
+    }
+
+# update the canonical account file (print)
+
+yup.
+
+# print the output file
+
+NOTE: the differences between the different print cases might be a case for object-oriented programming, maybe with roles ...
+
+#* put it all together: the program flow
+
+Above we have mostly encountered subroutine definitions. They have been presented in a logical order. What remains is the code required to call these subroutines in the correct order, deal with any choices between different options that arise along the way, and the like. At the beginning of this document is a 'table of contents' of all the code blocks defined here, in the order in which they occur in the program. In fact, this being a <emph>narrative programming</emph> document, that section at the top is in fact the instruction to the web compiler to take the code sections in this document and put them together in the right order to produce the perl program. Perl being flexible about order, we can put the 'flow' code either above or below the subroutine definitions. But that is immaterial: here comes its definition.
+
+What do we need to include here?
+
+ * variable definitions
+ * packaging?
+ * any non-subroutinized actions, like printing
+
+
+# variable definitions
+
+NOTE: can we include all of these things in separate files, making it easier to test them? And make an automated build process with a bash (or Perl) script so that testing is easier?
+
 
