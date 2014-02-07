@@ -1,0 +1,63 @@
+<HTML>
+<HEAD><TITLE>src/csvbankin.web</TITLE></HEAD>
+<BODY>
+<P><A NAME="module_1"></A><HR NOSHADE SIZE=4></HR><B>1. *.</B>#*csvbankin
+</P>
+
+<PRE>
+#p 
+    use warnings;
+    use strict;
+    use YAML::Syck;
+    use YAML::AppConfig;
+    use Getopt::Long;
+    Getopt::Long::Configure ('bundling');
+    &lt;&lt;sub determine_action&gt;&gt;<A HREF="#module_???"><SUB>???</SUB></A>
+</PRE>
+<P><A NAME="module_2"></A><HR NOSHADE SIZE=1></HR>2. an outline of the program in logical order.
+</P>
+
+<P>the core of the program is three things:
+</P>
+
+<P>1. parsing the fields of the input file and selecting a standardized set of these
+2. matching an account to each input line, by looking for known match strings
+3. remembering new account/match string combinations.
+</P>
+
+<P>the program runs in two passes: the first two steps in the first pass, the third step in the second pass. Let's look at what is needed for each of these.
+</P>
+
+<P><A NAME="module_3"></A><HR NOSHADE SIZE=1></HR>3. A note about structure: subroutine chaining.
+</P>
+
+<P>the program is structured as much as possible into subroutines that take input and provide output. So a lot of the actual body of the program will look like this:
+</P>
+
+<P>bar = subroutine(foo);
+baz = subroutine(bar);
+bim = subroutine(baz);
+</P>
+
+<P>etc.
+</P>
+
+<P>In the following, I will generally first describe the subroutines and show their code, and at the end describe how they are used and show the blocks of code that call the subroutines.
+</P>
+
+<P><A NAME="module_4"></A><HR NOSHADE SIZE=4></HR><B>4. *.</B>#*Introduction to csvbankin
+</P>
+
+<P>    <CODE>Csvbankin</CODE> parses diverse csv bank statements to a single format and remembers mappings of transactions to accounts. It is intended to prepare statements from different banks, which might all have different csv formats for their statements, to one standardized format for import into a finance management program. The need arose for me because <CODE>Moneyguru</CODE>, the package I was using, has a good csv import routine that can remember what accounts to map transactions to given the presence of a field with an internal account name, but it can't derive those account names from the text of the transaction itself. So, that's the second thing <CODE>csvbankin</CODE> does: it learns to recognize which account a transaction should be mapped to based on match strings in the text of the input file.
+</P>
+
+<P><A NAME="module_5"></A><HR NOSHADE SIZE=1></HR>5. Structure of the program
+</P>
+
+<P>    To accomplish this purpose, <CODE>csvbankin</CODE> runs in two steps. First, it parses the lines from the input file, and compares them to its list of accounts and match strings to determine what accounts go with each transaction. It prints these matches in an intermediate file which the user must inspect, adding new match strings and account names. Second, <CODE>csvbankin</CODE> reads this intermediate file to produce the final output file, and adds any new account names and match strings to its list to use next time. The idea is that over time, the amount of manual intervention decreases, because <CODE>csvbankin</CODE> remembers more and more matches.
+</P>
+
+<UL>
+<LI>sub determine_action: 1
+</UL>
+</BODY></HTML>

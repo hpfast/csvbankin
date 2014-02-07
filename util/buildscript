@@ -1,0 +1,32 @@
+#!/usr/bin/perl -w
+
+use strict;
+use File::Basename;
+
+#run this from the project directory
+#run 'buildscript build [pl|html] filename' to build
+#run 'buildscript test filename' to test
+
+my $action_type = shift @ARGV;
+my $action;
+my @suffixes = ('.web','.t');
+
+if ($action_type eq 'build'){
+    
+    my $output_type = shift @ARGV;
+    my $input_file = shift @ARGV;
+    my ($filename, $directories, $suffix) = fileparse($input_file,@suffixes);
+    if ($output_type eq 'pl'){
+        $action = "/home/hans/bin/perlweb/w2p";
+    }elsif ($output_type eq 'html'){
+        $action = "/home/hans/bin/perlweb/w2h";
+    }
+
+    my @args = ($action, $input_file, "-o", "build/$filename.$output_type");
+    print "@args\n";
+    system @args;
+}elsif ($action_type eq 'test'){
+    my $input_file = shift @ARGV;
+    
+    system "perl test/$input_file.t";
+}
