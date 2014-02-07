@@ -1,0 +1,14 @@
+#!/usr/bin/perl -w
+
+use strict;
+use YAML::Syck;
+use YAML::AppConfig;
+use Getopt::Long;
+Getopt::Long::Configure ('bundling');
+
+require '/home/hans/Private/annex1/materials/csvbankin/src/sub_determine_action';
+
+my ($read, $write) = &determine_action();
+
+print "read is $read and write is $write\n";
+

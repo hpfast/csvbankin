@@ -12,7 +12,7 @@
     use YAML::AppConfig;
     use Getopt::Long;
     Getopt::Long::Configure ('bundling');
-    &lt;&lt;sub determine_action&gt;&gt;<A HREF="#module_???"><SUB>???</SUB></A>
+    &lt;&lt;sub determine_action&gt;&gt;<A HREF="#module_6"><SUB>6</SUB></A>
 </PRE>
 <P><A NAME="module_2"></A><HR NOSHADE SIZE=1></HR>2. an outline of the program in logical order.
 </P>
@@ -57,7 +57,55 @@ bim = subroutine(baz);
 <P>    To accomplish this purpose, <CODE>csvbankin</CODE> runs in two steps. First, it parses the lines from the input file, and compares them to its list of accounts and match strings to determine what accounts go with each transaction. It prints these matches in an intermediate file which the user must inspect, adding new match strings and account names. Second, <CODE>csvbankin</CODE> reads this intermediate file to produce the final output file, and adds any new account names and match strings to its list to use next time. The idea is that over time, the amount of manual intervention decreases, because <CODE>csvbankin</CODE> remembers more and more matches.
 </P>
 
+<P><A NAME="module_6"></A><HR NOSHADE SIZE=1></HR>6. determine what to do
+</P>
+
+<P>before we start reading in data, we need to determine what ne need to do.
+</P>
+
+<PRE>
+&lt;&lt;sub determine_action&gt;&gt; =
+sub determine_action{    
+    my %h = ();
+    GetOptions (\%h, 'r|read', 'w|write', 'o|output=s', 'a|account=s'); # THIS SHOULD BE IN GLOBAL NAMESPACE!
+    my ($output,$read,$write,$name_or_type_b,$input_account);
+
+    my $argument = shift @ARGV;
+
+    if($h{r}==1){
+        if(!$h{a} or $h{a}eq''){
+            print "in read mode, need an account type or name! exiting.\n";
+            exit;
+        }# ^^ r but not a
+        elsif($h{a} and !$h{a}eq''){
+            ($input_account, $name_or_type_b) = resolve_input_account($h{a});
+            $read = 1;
+        }# ^^ r and a
+    }
+    if(defined $h{w}){
+        if (!$h{o} or $h{o}eq''){
+            print "in write mode, need output filename! exiting.\n";
+            exit;
+        }# ^^ w but not o
+        elsif($h{o} and !$h{o}eq''){
+                $output = $h{o};
+                print "assigned o value $h{o} to \$output!\n";
+                $write = 1;
+        }# ^^ w and o
+    }else{
+        if (!$h{o}eq''){
+            print "no point specifying output file if not in write mode! exiting.\n";
+            exit;
+        }# ^^ o but not w
+        elsif(!$h{o} or $h{o}eq''){
+
+            print "neither o nor w specified, I hope we have something to read!\n";
+        }# ^^ neither o nor w
+    }
+    return ($read, $write, $format, $assoc_account);
+}
+1;
 <UL>
-<LI>sub determine_action: 1
+<LI>sub determine_action: 1, <EM>6</EM>
 </UL>
 </BODY></HTML>

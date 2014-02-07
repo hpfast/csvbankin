@@ -42,4 +42,9 @@ In the following, I will generally first describe the subroutines and show their
 
     To accomplish this purpose, |csvbankin| runs in two steps. First, it parses the lines from the input file, and compares them to its list of accounts and match strings to determine what accounts go with each transaction. It prints these matches in an intermediate file which the user must inspect, adding new match strings and account names. Second, |csvbankin| reads this intermediate file to produce the final output file, and adds any new account names and match strings to its list to use next time. The idea is that over time, the amount of manual intervention decreases, because |csvbankin| remembers more and more matches.
     
+# determine what to do
 
+before we start reading in data, we need to determine what ne need to do.
+
+#<sub determine_action#>=
+#i src/sub_determine_action
